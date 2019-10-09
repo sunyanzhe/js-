@@ -280,3 +280,106 @@ var Dog = Animal.extend({
     }
 })
 
+
+
+(function(global) {
+    //首先这个deferred是个函数
+    //1. def('Animal')时就是返回的就是deferred
+    //2. 在继承父类时 < 出发两者调用valueOf, 此时会执行deferred.valueOf里面的逻辑
+    //3. 在继承父类时，父类的后面还可以接括号, 当做传送器保存着父类与扩展包到_super _props
+    var deferred; 
+
+
+    //扩展自定义类的原型
+    function extend(source) {
+        var prop, target = this.prototype;
+        for (var key in source) {
+            if (source.hasOwnProperty(key)) {
+                prop = target[key] = source[key];
+                if (typeof prop === 'function') {
+                    //这里给原型的每个方法都加上了名字 和对应的类
+                    //目的是为了可以通过这个类 找到自己父类  通过名字调用父类相同名字的函数
+                    prop._name = key;
+                    prop._class = this;
+                }
+            }
+        }
+        return this;
+    }
+
+    //这个其实就是Object.create里面的那个 function F(){} 说白了就是继承用的
+    function SubClass() {}
+
+
+    //在类中看到的this._super()这样 调用父类 实际上就是走的这个方法
+    function base() {
+        //这里的caller指的是外部包含着它的那个函数
+        //比如 init: function() {this._super()}  这个caller指的就是 这个init属性方法
+        var caller = base.caller;
+        //这里其实有点复杂 慢慢解读
+        //caller._class 指的就是当前拥有这个方法的类了
+        //caller._class._super 指的就是这个类的父类
+        //caller._class._super.prototype[caller._name] 这里就是拿到与父类同名的方法
+        //后面就比较好理解了 如果自己有参数就传自己的 如果没有，就传上一层函数的参数
+        //这里的 ._class 和 ._name都是在extend的时候 已经给方法绑定好的
+        return caller._class._super.prototype[caller._name].apply(this, arguments.length ? arguments : caller.arguments)
+    }
+    function def(context, klassName) {
+        klassName || (klassName = context, context = global);
+
+        //给全局 或者某对象上创建个类
+        var Klass = context[klassName] = function Klass() {
+            //这个判断真的很精妙
+            //这个判断的意思是 是否使用了new
+            //当如果使用了new的话 this指向的就应该是实例
+            //而如果只是当做普通函数进行使用的话 this应该与context这个作用域是相等的
+
+            if (this != context) {
+                this.init && this.init.apply(this, arguments);
+            }
+            
+            //这里其实是为了实现继承用的
+            //首先这里是new 实例的时候 或者 调用类方法的时候 才会走这里
+            //new的时候 其实这里没什么用
+            //关键是 类作为普通函数使用的时候
+            //这也是继承时的情况
+            // def('A')({})
+            // def('B') < A({})
+            // 当第二步A作为普通函数执行时, deferred的._super属性赋值为了 A  将._props属性赋值为了里面唯一的参数也就是 构造类的参数
+            deferred._super = Klass;
+            deferred._props = arguments[0] || {};
+        }
+        //让所有的类都共用一个extend方法
+        Klass.extend = extend;
+
+
+        //这里就是将所有传进去的参数都重写以后,把_class和_name都绑好了
+        //为以后的继承做准备, 最后返回一个Klass
+        //这里调用 其实也就是 第一次新建类的时候调用 就是用户自己调用 def('A')({}) 也就这个时候({}) 用户调用了
+        //继承的时候 其实是valueOf方法内部进行了自动调用
+        deferred = function(props) {
+            return Klass.extend(props);
+        }
+
+        //继承最关键的一步 < 运算符的时候 其实是调用了 函数valueOf方法
+        //所以改写valueOf
+        
+        deferred.valueOf = function() {
+            var SuperClass = deferred._super;
+            if (!SuperClass) {
+                return Klass;
+            }
+
+            SubClass.prototype = SuperClass.prototype;
+            var proto = Klass.prototype = new SubClass();
+            Klass._class = Klass;
+            Klass._super = SuperClass;
+
+            proto.constructor = Klass;
+            proto._super = base;
+            deferred(deferred._props);
+        }
+        return deferred;
+    }
+    global.def = def;
+})(this)
