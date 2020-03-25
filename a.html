@@ -6,8 +6,11 @@
     <title>Document</title>
 </head>
 <body>
+    <label>
+        <input id='1' name="a" type="checkbox" checked>
+        check
+    </label>
     <script>
-
         var text = `<div /><p /><input />`;
         let reg = /<(?!area|br|col|embed|hr|img|input|link|meta|param)(([\w:]+)[^>]*)\/>/ig
         console.log(reg.exec(text))
