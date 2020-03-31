@@ -7,11 +7,18 @@
     <title>Document</title>
 </head>
 <body>
-    <input type="checkbox" name="a" id="a" />
+    <div id="test">test</div>
     <script>
-        window.onload = function() {
-            console.log(document.querySelector('#a').value)
-        }
+        var test = document.getElementById('test');
+        test.addEventListener('click', function(){alert(1)}, false);
+        console.log(test.parentNode)
+        document.body.innerHTML = '';
+        console.log(test.parentNode)
+        console.log(test.id)
+        console.log(test.innerHTML)
+        setTimeout(() => {
+            document.body.appendChild(test)
+        }, 5000)
     </script>
 </body>
 </html>
