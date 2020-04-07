@@ -113,5 +113,172 @@ cssHooks['zIndex:get'] = function(node) {
     return 0;
 }
 
+/**
+ * 5.元素尺寸
+ * offsetWidth = width + paddingWidth + borderWidth
+ * 在元素display:none时, offsetWidth为0
+ */
 
+var cssShow = {
+    position: 'absolute',
+    visibility: 'hidden',
+    display: 'block'
+}
 
+var rdisplayswap = /^(none|table(?!-c[ea]).+)/
+function showHidden(node, array) {
+    if (node.offsetWidth <= 0) { // opera可能小于0
+        if (rdisplayswap.test(cssHooks['@:get'](node, display))) {
+            var obj = {
+                node: node
+            };
+            for (var i in cssShow) {
+                obj[name] = node.style[name]
+                node.style[name] = cssShow[name]
+            }
+            array.push(obj);
+        }
+    }
+}
+avalon.each({
+    Width: 'width',
+    Height: 'height'
+}, function(name, method) {
+    var clientProp = 'client' + name,
+        scrollProp = 'scroll' + name,
+        offsetProp = 'offset' + name;
+    cssHooks[method + ':get'] = function(node, which, override) {
+        var boxSizing = -4;
+        if (typeof override === 'number'){
+            boxSizing = override;
+        }
+        which = name === 'Width' ? ['Left', 'Right'] : ['Top', 'Bottom'];
+        var ret = node[offsetProp];
+        if (boxSizing === 2) {
+            return ret + avalon.css(node, 'margin' + which[0], true) + avalon.css(node, 'margin' + which[1], true);
+        }
+        if (boxSizing < 0) {
+            ret = ret - avalon.css(node, 'border' + which[0] + 'Width', true) - avalon.css(node, 'border' + which[1] + 'Width', true);
+        }
+        if (boxSizing === -4) {
+            ret = ret - avalon.css(node, 'padding' + which[0], true) - avalon.css(node, 'padding' + which[1], true);
+        }
+        return ret;
+    }
+    cssHooks[method + '&get'] = function(node) {
+        var hidden = [];
+        showHidden(node, hidden);
+        var val = cssHooks[method + ':get'](node);
+        for (var i = 0, obj; obj = hidden[i++];) {
+            node = obj.node;
+            for (var n in obj) {
+                if (typeof obj[n] === 'string') {
+                    node1.style[n] = obj[n];
+                }
+            }
+        }
+        return val;
+    }
+    avalon.fn[method] = function(value) {
+        var node = this[0];
+        if (arguments.length === 0) {
+            // window
+            if (node.setTimeout) {
+                return node['inner' + name] ||
+                    node.document.documentElement[clinetProp] ||
+                    node.document.body[clinetProp]
+            }
+            // document
+            if (node.nodeType === 9) {
+                var doc = doc.documentElement;
+                // FF chrome html.scrollHeight < body.scrollHeight
+                // IE 标准模式 html.scrollHeight > body.scrollHeight
+                // IE 兼容模式 html.scrollHeight 大于等于可是窗口多一点
+                return Math.max(node.body[scrollProp], doc[scrollProp], node.body[offsetProp], doc[offsetProp], doc[clinetProp])
+            }
+            return cssHooks[method + '&get'](node);
+        } else {
+            return this.css(method, value);
+        }
+    }
+    avalon.fn['inner' + name] = function() {
+        return cssHooks[method + ':get'](this[0], void 0, -2)
+    }
+    avalon.fn['outer' + name] = function() {
+        return cssHooks[method + ':get'](this[0], void 0, includeMargin === true ? 2 : 0)
+    }
+})
+
+/**
+ * 6. 元素的显示和隐藏
+ * 要拿到元素的默认样式值
+ */
+var none = 'none';
+function parseDisplay(elem, val) {
+    // 用于取得此类标签的默认display值
+    var doc = elem.ownerDocument,
+        nodeName = elem.nodeName,
+        key = '_' + nodeName;
+    if (parseDisplay[key]) return parseDisplay[key];
+    var temp = doc.body.appendChild(doc.createElement(nodeName));
+    if (avalon.modern) {
+        val = window.getComputedStyle(temp, null).display;
+    } else {
+        val = elem.currentStyle.display;
+    }
+    doc.body.removeChid(temp);
+    if (val === none) val = 'block';
+    return (parseDisplay[key] = val);
+}
+
+// 通过toggle方法设置元素是否显示隐藏
+function toggle(node, show) {
+    var display = node.style.display, value;
+    if (show) {
+        if (display === none) {
+            if (!value) {
+                node.style.display = '';
+            }
+        }
+        if (node.style.display === '' && avalon(node).css('display') === none && avalon.contains(node.ownerDocument, node)) {
+            value = parseDisplay(node);
+        }
+    } else {
+        if (display !== none) {
+            value = none;
+        }
+    }
+    if (value !== void 0) {
+        node.style.display = value
+    }
+}
+
+/**
+ * 7. 元素坐标
+ */
+
+/**
+ * 元素的坐标是指其top值与left值.
+ * node.style正好有这两个属性, 但必须在有定位的情况下才会有效
+ * 否则就会显示auto
+ * 然而,即使元素没有被定为, 通过offsetTop offsetLeft也能获取到相对页面的坐标
+ */
+function offset(node) {
+    let left = node.offsetLeft,
+        top = node.offsetTop;
+    while (node = node.offsetParent) {
+        left += node.offsetLeft;
+        top += node.offsetTop;
+    }
+    return {
+        left: left,
+        top: top
+    }
+}
+
+/**
+ * 相对于可视区的坐标也很实用, 自此IE的getBoundingClientRect方法被发掘出来之后, 兼职就是小菜一碟
+ * 此方法可以获取元素某个元素(border-box)的左 上 下 右分别相对于窗口的位置
+ * 它返回一个Object对象, 该对象肯定有这样四个属性: top left right bottom, 标准浏览器还多出width heigth两个属性
+ * css中的理解有点不一样, right
+ */

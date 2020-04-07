@@ -4,12 +4,41 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
+    <style>
+        body,html {
+            height: 100%;
+            background: gray
+        }
+        #parent {
+            background: red;
+            width: 300px;
+            height: 300px;
+        }
+        #son {
+            width: 100px;
+            height: 100px;
+            background: blue;
+            padding: 20px;
+            margin: 15px;
+            display: none;
+            border: 5px solid yellow;
+        }
+    </style>
 </head>
 <body>
+    <div id='parent'>
+        <div id="son"></div>
+    </div>
     <label>
         <input id='1' name="a" type="checkbox" checked>
         check
     </label>
+    <script>
+        window.onload = function() {
+            el = document.getElementById('son');
+            el.style.display = '';
+        }
+    </script>
     <script>
         var text = `<div /><p /><input />`;
         let reg = /<(?!area|br|col|embed|hr|img|input|link|meta|param)(([\w:]+)[^>]*)\/>/ig
