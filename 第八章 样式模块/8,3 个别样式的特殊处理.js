@@ -280,5 +280,107 @@ function offset(node) {
  * 相对于可视区的坐标也很实用, 自此IE的getBoundingClientRect方法被发掘出来之后, 兼职就是小菜一碟
  * 此方法可以获取元素某个元素(border-box)的左 上 下 右分别相对于窗口的位置
  * 它返回一个Object对象, 该对象肯定有这样四个属性: top left right bottom, 标准浏览器还多出width heigth两个属性
- * css中的理解有点不一样, right
+ * right 和 bottom 和css中的理解有点不一样, right是指元素右边界距窗口最左边的距离 bottom是指元素下边界距窗口最上面的距离
+ * 
  */
+
+avalon.fn.offset = function() {
+    var node = this[0],
+        box = {
+            x: 0,
+            y: 0
+        }
+    if (!node || !node.tagName || !node.ownerDocument) {
+        return box;
+    }
+    var doc = node.ownerDocument,
+        body = doc.body,
+        root = doc.documentElement,
+        win = doc.defaultView || doc.parentWindow;
+    if (!avalon.contains(root, node)) {
+        return box;
+    }
+    // 通过getBoundingClientRect来获取元素相对于client的rect
+    if (node.getBoundingClientRect) {
+        box = node.getBoundingClientRect();
+    }
+    // chrome/IE6 body.scrollTop, firefox/other root.scrollTop
+    var clientTop = root.clientTop || body.clientTop,   // borderTop
+        clinetLeft = root.clientLeft || body.clinetLeft,// borderLeft
+        scrollTop = Math.max(win.pageYOffset || 0, root.scrollTop, body.scrollTop),
+        scrollLeft = Math.max(win.pageXOffset || 0, root.scrollLeft, body.scrollLeft);
+    // 把滚动距离加到left top中
+    // IE中为HTML加2px的border 去掉它
+    return {
+        top: box.top + scrollTop - clientTop,
+        left: box.left + screenLeft - clinetLeft
+    };
+}
+
+// 不管兼容情况
+function offset(node) {
+    let default = {
+        top: 0,
+        left: 0
+    };
+    if (!node || !node.tagName || !node.ownerDocument) {
+        return default;
+    }
+    let rect = node.getBoundingClientRect();
+    return {
+        top: rect.top + document.documentElement.scrollTop,
+        left: rect.left + document.documentElement.screenLeft
+    };
+}
+
+/**
+ * 获取元素相对于其offsetParent的位置, 相对定位
+ * 要获取这个值, 先要确定offsetParent
+ * 根据W3C, 如果元素被移出DOM树或display, 为none
+ * 如果是HTML 或BODY 或元素的position为fixed, 为none
+ * 当position为 relative absolute时, offsetParent为距离其最近的已定位的祖先, 没有的话 找td th table元素, 再没有返回body
+ * 当position为 static时,offsetParent为最近的td th table元素, 没有返回body
+ * 若根据这个规律 太多的offsetParent为null, 导致无法计算
+ * 
+ * jQuery是这样定义offsetParent的
+ * 元素的offsetParent的position必须为relative或absolute, 否则继续寻找拎一个被定位的祖先, 没有返回null
+ * position:fixed的元素也有offsetParent, 就是当前可视区
+ */
+
+avalon.fn.position = function() {
+    var offsetParent, offset,
+        elem = this[0],
+        parentOffset = {
+            top: 0,
+            let: 0
+        }
+    if (!elem) {
+        return parentOffset;
+    }
+    if (this.css('position') === 'fixed') {
+        offset = elem.getBoundingClientRect()
+    } else {
+        offsetParent = this.offsetParent(); // 获得真正的offsetParent
+        offset = this.offset();             // 获得正确的offset
+        if (offsetParent[0].tagName !== 'HTML') {
+            parentOffset = offsetParent.offset();
+        }
+        parentOffset.top += avalon.css(offsetParent[0], 'borderTopWidth', true);
+        parentOffset.left += avalon.css(offsetParent[0], 'borderLeftWidth', true);
+
+        parentOffset.top -= offsetParent.scrollTop();
+        parentOffset.left -= offsetParent.scrollLeft();
+        return {
+            top: offset.top - parentOffset.top - avalon.css(elem, 'marginTop', true),
+            left: offset.left - parentOffset.left - avalon.css(elem, 'marginLeft', true)
+        }
+    }
+}
+
+avalon.fn.offsetParent = function() {
+    var offsetParent = this[0].offsetParent;
+    while (offsetParent && avalon.css(offsetParent, 'position') === 'static') {
+        offsetParent = offsetParent.offsetParent;
+    }
+    return avalon(offsetParent || root);
+}
