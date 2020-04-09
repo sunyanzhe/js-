@@ -319,12 +319,12 @@ avalon.fn.offset = function() {
 
 // 不管兼容情况
 function offset(node) {
-    let default = {
+    let obj = {
         top: 0,
         left: 0
     };
     if (!node || !node.tagName || !node.ownerDocument) {
-        return default;
+        return obj;
     }
     let rect = node.getBoundingClientRect();
     return {
