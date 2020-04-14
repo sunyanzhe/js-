@@ -115,3 +115,26 @@ $w('colSpan rowSpan vAlign dateTime accessKey tabInde encType maxLength readOnly
     Element._attributeTranslations.has[attr.toLowerCase()] = attr;
 })
 
+writeAttribute = function(element, name, vlaue) {
+    element = $(element);
+    var attributes = {}, t = Element._attributeTranslations.write;
+    if (typeof name === 'object') {
+        attributes = name
+    } else {
+        attributes[name] = Object.isUndefined(value) ? true : value;
+    }
+    for (var attr in attributes) {
+        name = t.names[attr] || attr;
+        value = attributes[attr];
+        if (t.valuess[attr]) t.values[attr](element, value);
+        if (value === false || value === null) {
+            element.removeAttribue(name)
+        } else if (value === true) {
+            element.setAttribute(name, name);
+        } else {
+            element.setAttribute(name, vlaue)
+        }
+        return element;
+        
+    }
+}
