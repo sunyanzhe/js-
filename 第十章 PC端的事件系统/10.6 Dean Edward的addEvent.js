@@ -34,7 +34,14 @@ addEvent.guid = 1;  // UUID
 
 /**
  * 数据结构为 
- * 
+ * Element: {
+ *  events: {
+ *      click: {
+ *          0: handler1,  --> handler1.$$guid = addEvent.guid++
+ *          5: handler2
+ *      }
+ *  }
+ * }
  */
 
 // 移除事件
@@ -47,7 +54,9 @@ function removeEvent(element, type, handler) {
 function handleEvent(event) {
     var returnValue = true;
     // 统一事件对象阻止默认行为与事件传统的接口
-    event = event || fixEvent(event);
+    // event = event || fixEvent(window.event);
+    /**iframe找不到window.event */
+    event = event || fixEvent(((this.ownerDocumet || this.document || this).parentWindow || window).event);
     // 根据事件类型, 取得要处理回调集合, 由于UUID是纯数字, 因此可以按照绑定时的顺序执行
     var handlers = this.events[event.type];
     for (var i in handlers) {
@@ -73,3 +82,28 @@ fixEvent.preventDefault = function(){
 fixEvent.stopPropagation = function() {
     this.cancelBubble = true;
 }
+
+
+// 为了避免交错引用产出的内存泄漏, 建议元素就分配一个UUID, 所有回调放到一个对象中储存
+function addEvent(element, type, handler) {
+    if (!handler.$$guid) handler.$$guid = addEvent.guid++;
+    if (!element.$$guid) element.$$guid = addEvent.guid++;
+    if (!addEvent.handlers[element.$$guid]) addEvent.handlers[element.$$guid] = {};
+    // 每个元素的回调都分类存储在不同的hash中
+    var handlers = addEvent.handlers[element.$$guid][type];
+    if (!handlers) {
+        handlers = addEvent.handlers[element.$$guid][type] = {};
+        if (element['on' + type]) {
+            handlers[0] = element['on' + type];
+        }
+    }
+    handlers[handler.$$guid] = handler;
+    element['on' + type] = handleEvent;
+}
+
+addEvent.guid = 1;
+addEvent.handlers = {};
+
+/**
+ * 但随着时间的推移, 使用者发现onXXX在IE存在不可消弭的内存泄漏
+ */
