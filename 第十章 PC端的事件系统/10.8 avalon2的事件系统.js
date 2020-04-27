@@ -102,3 +102,135 @@ function delegateEvent(type) {
  * 2. 通过event.target得到事件源对象, 从而访问到avalon-events属性值, 然后根据event.type得到所有相对UUID, 再从eventListeners得到回调. 这些步骤通过collectHandlers私有方法实现
  * 3. 遍历所有回调, 根据事件冒泡与返回值, 设置一些分支, 实现stopPropagation与stopImmediatePropagation
  */
+
+var typeRegExp = {}
+// 收集当前元素的事件, 如果事件冒泡, 继续收集父集的事件
+function collectHandlers(elem, type, handlers) {
+    var value = elem.getAttribute('avalon-events');
+    if (value && (elem.disabled !== true || type !== 'click')) {
+        var uuids = [];
+        var reg = typeRegExp[type] || (typeRegExp[type] = new RegExp('\\b' + type + '\\:([^,\\s]+)', 'g'));
+        value.replace(reg, function(a, b) {
+            uuids.push(b);
+            return a;
+        })
+        if (uuids.length) {
+            handlers.push({
+                elem: elem,
+                uuids: uuids
+            })
+        }
+    }
+    elem = elem.paretnNode;
+    if (elem && elem.getAttribute && canBubbleUp[type]) {
+        collectHandlers(elem, type, handlers)
+    }
+}
+
+function dispatch(event) {
+    event = new avEvent(event);
+    var type = event.type,
+        elem = event.target,
+        handlers = [];
+    collectHandlers(elem, type, handlers);
+    var i = 0, j, uuid, handler;
+    // 这里模拟整个冒泡过程及当用户在回调里调用了stopPropagation与stopImmediatePropagation方法时, 会改变事件的cacelBubble isImmediatePropagationStopped属性, 如何中断冒泡的
+    while ((handle = handlers[i++]) && !event.cancelbubble) {
+        var host = event.currentTarget = handler.elem;
+        j = 0;
+        while ((uuid = handler.uuids[j++]) && !event.isImmediatePropagationStopped()) {
+            var fn = avalon.eventListeners[uuid]
+            if (fn) {
+                var ret = fn.call(elem, event);
+                if (!ret) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+            }
+        }
+    }
+}
+
+function avEvent(event) {
+    if (event.originalEvent) {
+        return this;
+    }
+    for (var i in event) {
+        if (typeof event[i] !== 'function') {
+            this[i] = event[i]
+        }
+    }
+    if (!event.target) {
+        this.target = event.scrElement
+    }
+    this.timeStamp = Date.now();
+    this.originalEvent = event
+}
+avEvent.prototype = {
+    preventDefault: function() {
+        var e = this.originalEvent;
+        this.returnValue = false;
+        if (e) {
+            e.returnValue = false;
+            if (e.preventDefault) {
+                e.preventDefault();
+            }
+        }
+    },
+    stopPropagation: function() {
+        var e = this.originalEvent;
+        this.canBubbleUp = true;
+        if (e) {
+            e.canBubbleUp = true;
+            if (e.stopPropagation) {
+                e.stopPropagation()
+            } 
+        }
+    },
+    stopImediatePropagation: function() {
+        var e = this.originalEvent;
+        this.isImmediatePropagationStopped = true;
+        if (e.stopImediatePropagation) {
+            e.stopImediatePropagation();
+        }
+        this.stopPropagation();
+    }
+}
+
+/**
+ * 再看一下如何删除事件
+ * 由于事件名与回调都在avalon-events属性值中得到
+ * 主要删掉里面的uuid, 那么当点击事件发生时, 就不会进入用户的回调中
+ * 同理, 如果将事件名删除, 那么这个元素所有点击回调就不触发
+ * 进一步 我们把avalon-events这个属性删掉, 所有的事件回调就都不会触发了
+ * 为了节约内存, 最好也把avalon.eventListeners中的回调也删掉, 这样不用操作detachEvent/removeEventListenr就能卸载事件
+ *
+ */
+
+avalon.unbind = function(elem, type, fn) {
+    if (elem.nodeType === 1) {
+        var value = elem.getAttribute('avalon-events') || ''
+        switch (arguments.length) {
+            case 1:
+                nativeunBind(elem, type, dispatch);
+                elem.removeAttribute('avalon-events')
+                break;
+            case 2:
+                value = value.split(',').filter(function(str) {
+                    return str.indexOf(type + ':') === -1
+                }).join(',')
+                elem.setAttribute('avalon-events', value)
+                break;
+            default:
+                var search = type + ':' + fn.uuid;
+                value = value.split(',').filter(function(str) {
+                    return str !== search
+                }).join(',')
+                elem.setAttribute('avalon-events', value);
+                delete avalon.eventListeners[fn.uuid]
+                break;
+        }
+    } else {
+        nativeUnBind(elem, type, fn)
+    }
+}
