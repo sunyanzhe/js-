@@ -74,3 +74,23 @@ function dig(a) {
 function fill(a) {
     return stringPool[a]
 }
+
+function render(str) {
+    stringPool = {};
+    var tokens = tokenize(str)
+    var ret = []
+    for (var i = 0, token; token = tokens[i++];) {
+        if (token.type === 'text') {
+            ret.push(quote(token.expr))
+        } else {
+            // 先去掉对象的子属性, 减少干扰因素
+            var js = token.expr.replace(rproperty, dig)
+            js = js.replace(rident, function(a) {
+                return 'data.' + a
+            })
+            js = js.replace(rfill, fill)
+            ret.push(js)
+        }
+    }
+    return new Function('data', 'return '+ ret.join('+'))
+}
